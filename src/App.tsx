@@ -97,14 +97,54 @@ const project = {
   ]
 } as const;
 
+type RecordRow = [string, string, string, string, string, string];
+type ReadonlyRecordRow = readonly [string, string, string, string, string, string];
+
+const stainOptions = ["HE", "IHC", "特殊染色"] as const;
+const priorityOptions = ["高", "中", "低"] as const;
+const reviewOptions = ["待复核", "已初筛", "待补充"] as const;
+const defaultForm: RecordRow = ["", "", "HE", "中", "", "待复核"];
+
 export default function App() {
   const [filter, setFilter] = useState<string>(project.filters[0]);
   const [selected, setSelected] = useState(0);
+  const [records, setRecords] = useState<ReadonlyRecordRow[]>([...project.records]);
+  const [formData, setFormData] = useState<RecordRow>([...defaultForm]);
+
   const visibleRecords = useMemo(() => {
-    if (filter === project.filters[0]) return project.records;
-    return project.records.filter((row) => row.join(" ").includes(filter));
-  }, [filter]);
-  const rows = visibleRecords.length ? visibleRecords : project.records;
+    if (filter === project.filters[0]) return records;
+    return records.filter((row) => {
+      if (filter === "需复核") {
+        return row[5] === "待复核" || row[5] === "待补充";
+      }
+      return row.join(" ").includes(filter);
+    });
+  }, [filter, records]);
+  const rows = visibleRecords.length ? visibleRecords : records;
+
+  const updateForm = (index: number, value: string) => {
+    const next: RecordRow = [formData[0], formData[1], formData[2], formData[3], formData[4], formData[5]];
+    next[index] = value;
+    setFormData(next);
+  };
+
+  const submitCase = () => {
+    if (!formData[0].trim()) {
+      alert("请填写病例编号");
+      return;
+    }
+    if (!formData[1].trim()) {
+      alert("请填写取材部位");
+      return;
+    }
+    if (!formData[4].trim()) {
+      alert("请填写初筛标签");
+      return;
+    }
+    const newRecord: ReadonlyRecordRow = [formData[0], formData[1], formData[2], formData[3], formData[4], formData[5]];
+    setRecords((prev) => [...prev, newRecord]);
+    setFormData([defaultForm[0], defaultForm[1], defaultForm[2], defaultForm[3], defaultForm[4], defaultForm[5]]);
+  };
 
   return (
     <main className="app-shell" style={{ "--accent": project.accent } as CSSProperties}>
@@ -178,6 +218,40 @@ export default function App() {
                   <p>{text}</p>
                 </div>
               ))}
+            </div>
+          </section>
+
+          <section className="panel">
+            <h2>病例快速建档</h2>
+            <div className="form-grid">
+              <label>病例编号
+                <input value={formData[0]} placeholder="如 P-240617-04" onChange={(e) => updateForm(0, e.target.value)} />
+              </label>
+              <label>取材部位
+                <input value={formData[1]} placeholder="如 胃窦活检" onChange={(e) => updateForm(1, e.target.value)} />
+              </label>
+              <label>染色类型
+                <select value={formData[2]} onChange={(e) => updateForm(2, e.target.value)}>
+                  {stainOptions.map((opt) => <option value={opt} key={opt}>{opt}</option>)}
+                </select>
+              </label>
+              <label>优先级
+                <select value={formData[3]} onChange={(e) => updateForm(3, e.target.value)}>
+                  {priorityOptions.map((opt) => <option value={opt} key={opt}>{opt}</option>)}
+                </select>
+              </label>
+              <label style={{ gridColumn: "1 / -1" }}>初筛标签
+                <input value={formData[4]} placeholder="如 腺体异型增生" onChange={(e) => updateForm(4, e.target.value)} />
+              </label>
+              <label style={{ gridColumn: "1 / -1" }}>复核状态
+                <select value={formData[5]} onChange={(e) => updateForm(5, e.target.value)}>
+                  {reviewOptions.map((opt) => <option value={opt} key={opt}>{opt}</option>)}
+                </select>
+              </label>
+            </div>
+            <div className="actions">
+              <button className="primary" onClick={submitCase}>提交建档</button>
+              <button className="secondary" onClick={() => setFormData([...defaultForm])}>重置</button>
             </div>
           </section>
 
