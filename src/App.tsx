@@ -166,7 +166,7 @@ const emptyCaseDetail: CaseDetail = {
 
 export default function App() {
   const [filter, setFilter] = useState<string>(project.filters[0]);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [selectedCaseId, setSelectedCaseId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [records, setRecords] = useState<ReadonlyRecordRow[]>([...project.records]);
   const [caseDetails, setCaseDetails] = useState<Record<string, CaseDetail>>({ ...project.caseDetails });
@@ -184,8 +184,7 @@ export default function App() {
 
   const displayRecords = visibleRecords.length > 0 ? visibleRecords : records;
 
-  const selectedRecord = selected !== null && displayRecords[selected] ? displayRecords[selected] : null;
-  const selectedCaseId = selectedRecord ? selectedRecord[0] : null;
+  const selectedRecord = selectedCaseId ? records.find((row) => row[0] === selectedCaseId) ?? null : null;
   const selectedCaseDetail = selectedCaseId ? (caseDetails[selectedCaseId] ?? emptyCaseDetail) : emptyCaseDetail;
 
   const updateForm = (index: number, value: string) => {
@@ -212,8 +211,8 @@ export default function App() {
     setFormData([defaultForm[0], defaultForm[1], defaultForm[2], defaultForm[3], defaultForm[4], defaultForm[5]]);
   };
 
-  const handleRowClick = (index: number) => {
-    setSelected(index);
+  const handleRowClick = (row: ReadonlyRecordRow) => {
+    setSelectedCaseId(row[0]);
     setDrawerOpen(true);
   };
 
@@ -289,9 +288,9 @@ export default function App() {
                 {displayRecords.length > 0 ? (
                   displayRecords.map((row, index) => (
                     <tr
-                      className={selected === index ? "selected" : ""}
+                      className={selectedCaseId === row[0] ? "selected" : ""}
                       key={row.join("-")}
-                      onClick={() => handleRowClick(index)}
+                      onClick={() => handleRowClick(row)}
                     >
                       {row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}
                     </tr>
@@ -501,7 +500,7 @@ export default function App() {
                     />
                     <div className="actions">
                       <button className="primary">保存备注</button>
-                      <button className="secondary">清空</button>
+                      <button className="secondary" onClick={() => updateRemark("")}>清空</button>
                     </div>
                   </section>
                 </>
