@@ -1,4 +1,4 @@
-import { useMemo, useState, type CSSProperties } from "react";
+import { useMemo, useRef, useState, type CSSProperties } from "react";
 import "./styles.css";
 
 type CaseDetail = {
@@ -11,6 +11,35 @@ type CaseDetail = {
     vascularInvasion: string;
   };
   remark: string;
+};
+
+type QuickEntryData = {
+  tumorSize: string;
+  invasionDepth: string;
+  marginStatus: string;
+  ihcSupplement: string;
+  remark: string;
+};
+
+type ExportData = {
+  version: string;
+  exportedAt: string;
+  records: ReadonlyRecordRow[];
+  caseDetails: Record<string, CaseDetail>;
+  quickEntry: QuickEntryData;
+};
+
+type ImportError = {
+  field: string;
+  message: string;
+};
+
+const emptyQuickEntry: QuickEntryData = {
+  tumorSize: "",
+  invasionDepth: "",
+  marginStatus: "",
+  ihcSupplement: "",
+  remark: ""
 };
 
 const project = {
@@ -171,6 +200,175 @@ export default function App() {
   const [records, setRecords] = useState<ReadonlyRecordRow[]>([...project.records]);
   const [caseDetails, setCaseDetails] = useState<Record<string, CaseDetail>>({ ...project.caseDetails });
   const [formData, setFormData] = useState<RecordRow>([...defaultForm]);
+  const [quickEntry, setQuickEntry] = useState<QuickEntryData>({ ...emptyQuickEntry });
+  const [importErrors, setImportErrors] = useState<ImportError[]>([]);
+  const [importSuccess, setImportSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const validateImportData = (data: unknown): ImportError[] => {
+    const errors: ImportError[] = [];
+    if (typeof data !== "object" || data === null) {
+      errors.push({ field: "root", message: "JSON 数据格式错误，必须是对象" });
+      return errors;
+    }
+    const obj = data as Record<string, unknown>;
+    if (typeof obj.version !== "string") {
+      errors.push({ field: "version", message: "缺少或格式错误：version 字段应为字符串" });
+    }
+    if (!Array.isArray(obj.records)) {
+      errors.push({ field: "records", message: "缺少或格式错误：records 字段应为数组" });
+    } else {
+      obj.records.forEach((row: unknown, index: number) => {
+        if (!Array.isArray(row) || row.length !== 6) {
+          errors.push({ field: `records[${index}]`, message: `第 ${index + 1} 条记录格式错误，应为包含 6 个字段的数组` });
+        } else {
+          row.forEach((cell: unknown, cellIndex: number) => {
+            if (typeof cell !== "string") {
+              errors.push({ field: `records[${index}][${cellIndex}]`, message: `第 ${index + 1} 条记录第 ${cellIndex + 1} 个字段应为字符串` });
+            }
+          });
+        }
+      });
+    }
+    if (typeof obj.caseDetails !== "object" || obj.caseDetails === null || Array.isArray(obj.caseDetails)) {
+      errors.push({ field: "caseDetails", message: "缺少或格式错误：caseDetails 字段应为对象" });
+    } else {
+      Object.entries(obj.caseDetails as Record<string, unknown>).forEach(([key, value]) => {
+        const detail = value as Record<string, unknown>;
+        if (typeof detail.microscopy !== "string") {
+          errors.push({ field: `caseDetails.${key}.microscopy`, message: `${key} 缺少 microscopy 字段或格式错误` });
+        }
+        if (typeof detail.diagnosis !== "string") {
+          errors.push({ field: `caseDetails.${key}.diagnosis`, message: `${key} 缺少 diagnosis 字段或格式错误` });
+        }
+        if (typeof detail.structured !== "object" || detail.structured === null) {
+          errors.push({ field: `caseDetails.${key}.structured`, message: `${key} 缺少 structured 字段或格式错误` });
+        } else {
+          const structured = detail.structured as Record<string, unknown>;
+          if (typeof structured.tumorSize !== "string") {
+            errors.push({ field: `caseDetails.${key}.structured.tumorSize`, message: `${key} structured 缺少 tumorSize 字段` });
+          }
+          if (typeof structured.invasionDepth !== "string") {
+            errors.push({ field: `caseDetails.${key}.structured.invasionDepth`, message: `${key} structured 缺少 invasionDepth 字段` });
+          }
+          if (typeof structured.marginStatus !== "string") {
+            errors.push({ field: `caseDetails.${key}.structured.marginStatus`, message: `${key} structured 缺少 marginStatus 字段` });
+          }
+          if (typeof structured.vascularInvasion !== "string") {
+            errors.push({ field: `caseDetails.${key}.structured.vascularInvasion`, message: `${key} structured 缺少 vascularInvasion 字段` });
+          }
+        }
+        if (typeof detail.remark !== "string") {
+          errors.push({ field: `caseDetails.${key}.remark`, message: `${key} 缺少 remark 字段或格式错误` });
+        }
+      });
+    }
+    if (typeof obj.quickEntry !== "object" || obj.quickEntry === null || Array.isArray(obj.quickEntry)) {
+      errors.push({ field: "quickEntry", message: "缺少或格式错误：quickEntry 字段应为对象" });
+    } else {
+      const qe = obj.quickEntry as Record<string, unknown>;
+      if (typeof qe.tumorSize !== "string") {
+        errors.push({ field: "quickEntry.tumorSize", message: "quickEntry 缺少 tumorSize 字段" });
+      }
+      if (typeof qe.invasionDepth !== "string") {
+        errors.push({ field: "quickEntry.invasionDepth", message: "quickEntry 缺少 invasionDepth 字段" });
+      }
+      if (typeof qe.marginStatus !== "string") {
+        errors.push({ field: "quickEntry.marginStatus", message: "quickEntry 缺少 marginStatus 字段" });
+      }
+      if (typeof qe.ihcSupplement !== "string") {
+        errors.push({ field: "quickEntry.ihcSupplement", message: "quickEntry 缺少 ihcSupplement 字段" });
+      }
+      if (typeof qe.remark !== "string") {
+        errors.push({ field: "quickEntry.remark", message: "quickEntry 缺少 remark 字段" });
+      }
+    }
+    return errors;
+  };
+
+  const handleExport = () => {
+    const exportData: ExportData = {
+      version: "1.0",
+      exportedAt: new Date().toISOString(),
+      records: [...records],
+      caseDetails: { ...caseDetails },
+      quickEntry: { ...quickEntry }
+    };
+    const jsonStr = JSON.stringify(exportData, null, 2);
+    const blob = new Blob([jsonStr], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pathology-data-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => {
+    setImportErrors([]);
+    setImportSuccess(false);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      let data: unknown;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        setImportErrors([{ field: "root", message: "JSON 解析失败，请检查文件格式" }]);
+        return;
+      }
+      const errors = validateImportData(data);
+      if (errors.length > 0) {
+        setImportErrors(errors);
+        setImportSuccess(false);
+        return;
+      }
+      const validData = data as ExportData;
+      setRecords([...validData.records]);
+      setCaseDetails({ ...validData.caseDetails });
+      setQuickEntry({ ...validData.quickEntry });
+      setImportErrors([]);
+      setImportSuccess(true);
+    } catch (err) {
+      setImportErrors([{ field: "root", message: `文件读取失败：${err instanceof Error ? err.message : "未知错误"}` }]);
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const updateQuickEntry = (field: keyof QuickEntryData, value: string) => {
+    setQuickEntry((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const saveQuickEntry = () => {
+    if (!selectedCaseId) {
+      alert("请先在左侧列表选择一个病例");
+      return;
+    }
+    setCaseDetails((prev) => ({
+      ...prev,
+      [selectedCaseId]: {
+        ...(prev[selectedCaseId] ?? emptyCaseDetail),
+        structured: {
+          ...(prev[selectedCaseId]?.structured ?? emptyCaseDetail.structured),
+          tumorSize: quickEntry.tumorSize,
+          invasionDepth: quickEntry.invasionDepth,
+          marginStatus: quickEntry.marginStatus
+        },
+        remark: quickEntry.remark
+      }
+    }));
+    alert("已保存到当前选中病例的结构化信息中");
+  };
 
   const visibleRecords = useMemo(() => {
     if (filter === project.filters[0]) return records;
@@ -369,14 +567,78 @@ export default function App() {
           <section className="panel">
             <h2>快速录入</h2>
             <div className="form-grid">
-              {project.form.map((field) => (
-                <label key={field}>{field}<input placeholder={"填写" + field} /></label>
-              ))}
-              <textarea placeholder="补充专业备注" />
+              <label>肿瘤大小
+                <input
+                  value={quickEntry.tumorSize}
+                  placeholder="填写肿瘤大小"
+                  onChange={(e) => updateQuickEntry("tumorSize", e.target.value)}
+                />
+              </label>
+              <label>浸润深度
+                <input
+                  value={quickEntry.invasionDepth}
+                  placeholder="填写浸润深度"
+                  onChange={(e) => updateQuickEntry("invasionDepth", e.target.value)}
+                />
+              </label>
+              <label>切缘状态
+                <input
+                  value={quickEntry.marginStatus}
+                  placeholder="填写切缘状态"
+                  onChange={(e) => updateQuickEntry("marginStatus", e.target.value)}
+                />
+              </label>
+              <label>是否补做免疫组化
+                <input
+                  value={quickEntry.ihcSupplement}
+                  placeholder="填写是否补做免疫组化"
+                  onChange={(e) => updateQuickEntry("ihcSupplement", e.target.value)}
+                />
+              </label>
+              <textarea
+                placeholder="补充专业备注"
+                value={quickEntry.remark}
+                onChange={(e) => updateQuickEntry("remark", e.target.value)}
+              />
             </div>
             <div className="actions">
-              <button className="primary">保存记录</button>
-              <button className="secondary">导出JSON</button>
+              <button className="primary" onClick={saveQuickEntry}>保存记录</button>
+            </div>
+          </section>
+
+          <section className="panel">
+            <h2>本地 JSON 导入导出</h2>
+            <p className="mini-note">
+              将病例列表、详情记录和快速录入内容导出为 JSON 文件，或选择 JSON 文件导入并替换当前数据。
+            </p>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json"
+              style={{ display: "none" }}
+              onChange={handleFileChange}
+            />
+            {importSuccess && (
+              <div className="success-message">
+                ✓ 数据导入成功，已替换当前页面数据
+              </div>
+            )}
+            {importErrors.length > 0 && (
+              <div className="error-panel">
+                <div className="error-title">导入失败，存在以下字段问题：</div>
+                <ul className="error-list">
+                  {importErrors.map((err, idx) => (
+                    <li key={idx}>
+                      <span className="error-field">{err.field}</span>
+                      <span className="error-text">{err.message}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div className="actions">
+              <button className="primary" onClick={handleExport}>导出 JSON</button>
+              <button className="secondary" onClick={handleImportClick}>导入 JSON</button>
             </div>
           </section>
         </aside>

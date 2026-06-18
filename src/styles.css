@@ -349,3 +349,64 @@ h1 { margin: 0; font-size: clamp(28px, 4vw, 46px); line-height: 1.08; letter-spa
   .info-grid { grid-template-columns: 1fr; }
   .drawer { width: 100%; }
 }
+
+.success-message {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #047857;
+  padding: 12px 14px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.error-panel {
+  background: rgba(220, 38, 38, 0.06);
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+
+.error-title {
+  color: #b91c1c;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+
+.error-list {
+  margin: 0;
+  padding-left: 0;
+  list-style: none;
+}
+
+.error-list li {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed rgba(220, 38, 38, 0.15);
+  font-size: 13px;
+}
+
+.error-list li:last-child {
+  border-bottom: none;
+}
+
+.error-field {
+  font-family: "Consolas", "Monaco", monospace;
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.error-text {
+  color: #991b1b;
+  line-height: 1.5;
+}
